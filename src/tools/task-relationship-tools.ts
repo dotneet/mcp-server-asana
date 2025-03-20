@@ -1,81 +1,104 @@
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { AsanaClientWrapper } from "../asana-client-wrapper.js";
 
-export const addTaskDependenciesTool: Tool = {
+// Task dependency addition tool
+export const addTaskDependenciesTool = {
   name: "asana_add_task_dependencies",
   description: "Set dependencies for a task",
   inputSchema: {
-    type: "object",
-    properties: {
-      task_id: {
-        type: "string",
-        description: "The task ID to add dependencies to"
-      },
-      dependencies: {
-        type: "array",
-        items: {
-          type: "string"
-        },
-        description: "Array of task IDs that this task depends on"
-      }
-    },
-    required: ["task_id", "dependencies"]
-  }
+    task_id: z.string(),
+    dependencies: z.array(z.string()),
+  },
 };
 
-export const addTaskDependentsTool: Tool = {
+// Task dependent addition tool
+export const addTaskDependentsTool = {
   name: "asana_add_task_dependents",
   description: "Set dependents for a task (tasks that depend on this task)",
   inputSchema: {
-    type: "object",
-    properties: {
-      task_id: {
-        type: "string",
-        description: "The task ID to add dependents to"
-      },
-      dependents: {
-        type: "array",
-        items: {
-          type: "string"
-        },
-        description: "Array of task IDs that depend on this task"
-      }
-    },
-    required: ["task_id", "dependents"]
-  }
+    task_id: z.string(),
+    dependents: z.array(z.string()),
+  },
 };
 
-export const setParentForTaskTool: Tool = {
+// Task parent setting tool
+export const setParentForTaskTool = {
   name: "asana_set_parent_for_task",
-  description: "Set the parent of a task and position the subtask within the other subtasks of that parent",
+  description: "Set a parent task for a task",
   inputSchema: {
-    type: "object",
-    properties: {
-      data: {
-        parent: {
-          type: "string",
-          description: "The GID of the new parent of the task, or null for no parent",
-          required: true
-        },
-        insert_after: {
-          type: "string",
-          description: "A subtask of the parent to insert the task after, or null to insert at the beginning of the list. Cannot be used with insert_before. The task must already be set as a subtask of that parent."
-        },
-        insert_before: {
-          type: "string",
-          description: "A subtask of the parent to insert the task before, or null to insert at the end of the list. Cannot be used with insert_after. The task must already be set as a subtask of that parent."
-        },
-      },
-      task_id: {
-        type: "string",
-        description: "The task ID to operate on"
-      },
-      opts: {
-        opt_fields: {
-          type: "string",
-          description: "Comma-separated list of optional fields to include"
-        }
-      }
-    },
-    required: ["task_id", "data"]
-  }
+    data: z.union([z.string(), z.record(z.any())]),
+    task_id: z.string(),
+    opts: z.union([z.string(), z.record(z.any())]).optional(),
+  },
 };
+
+// Register task dependency addition tool
+export function registerAddTaskDependenciesTool(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  server.tool(
+    addTaskDependenciesTool.name,
+    addTaskDependenciesTool.inputSchema,
+    async ({ task_id, dependencies }) => {
+      const response = await asanaClient.addTaskDependencies(
+        task_id,
+        dependencies,
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(response) }],
+      };
+    },
+  );
+}
+
+// Register task dependent addition tool
+export function registerAddTaskDependentsTool(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  server.tool(
+    addTaskDependentsTool.name,
+    addTaskDependentsTool.inputSchema,
+    async ({ task_id, dependents }) => {
+      const response = await asanaClient.addTaskDependents(task_id, dependents);
+      return {
+        content: [{ type: "text", text: JSON.stringify(response) }],
+      };
+    },
+  );
+}
+
+// Register task parent setting tool
+export function registerSetParentForTaskTool(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  server.tool(
+    setParentForTaskTool.name,
+    setParentForTaskTool.inputSchema,
+    async ({ data, task_id, opts }) => {
+      if (typeof data === "string") {
+        data = JSON.parse(data);
+      }
+      if (typeof opts === "string") {
+        opts = JSON.parse(opts);
+      }
+      const response = await asanaClient.setParentForTask(data, task_id, opts);
+      return {
+        content: [{ type: "text", text: JSON.stringify(response) }],
+      };
+    },
+  );
+}
+
+// Register all task relationship-related tools
+export function registerAllTaskRelationshipTools(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  registerAddTaskDependenciesTool(server, asanaClient);
+  registerAddTaskDependentsTool(server, asanaClient);
+  registerSetParentForTaskTool(server, asanaClient);
+}

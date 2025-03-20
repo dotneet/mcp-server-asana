@@ -8,43 +8,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { AsanaClientWrapper } from "./asana-client-wrapper.js";
 import { z } from "zod";
 
-// ツールの定義をインポート
-import { listWorkspacesTool } from "./tools/workspace-tools.js";
-import {
-  searchProjectsTool,
-  getProjectTool,
-  getProjectTaskCountsTool,
-  getProjectSectionsTool,
-} from "./tools/project-tools.js";
-import {
-  getProjectStatusTool,
-  getProjectStatusesForProjectTool,
-  createProjectStatusTool,
-  deleteProjectStatusTool,
-} from "./tools/project-status-tools.js";
-import {
-  searchTasksTool,
-  getTaskTool,
-  createTaskTool,
-  updateTaskTool,
-  createSubtaskTool,
-  getMultipleTasksByGidTool,
-} from "./tools/task-tools.js";
-import {
-  getTasksForTagTool,
-  getTagsForWorkspaceTool,
-} from "./tools/tag-tools.js";
-import {
-  addTaskDependenciesTool,
-  addTaskDependentsTool,
-  setParentForTaskTool,
-} from "./tools/task-relationship-tools.js";
-import {
-  getStoriesForTaskTool,
-  createTaskStoryTool,
-} from "./tools/story-tools.js";
+// Import tools
+import { registerAllWorkspaceTools } from "./tools/workspace-tools.js";
+import { registerAllProjectTools } from "./tools/project-tools.js";
+import { registerAllProjectStatusTools } from "./tools/project-status-tools.js";
+import { registerAllTaskTools } from "./tools/task-tools.js";
+import { registerAllTagTools } from "./tools/tag-tools.js";
+import { registerAllTaskRelationshipTools } from "./tools/task-relationship-tools.js";
+import { registerAllStoryTools } from "./tools/story-tools.js";
 
-// プロンプト定義
+// Prompt definitions
 const PROMPTS = {
   "task-summary": {
     name: "task-summary",
@@ -109,7 +82,7 @@ async function main() {
 
   console.error("Starting Asana MCP Server...");
 
-  // McpServerを使用して新しいサーバーを作成
+  // Create a new server using McpServer
   const server = new McpServer({
     name: "Asana MCP Server",
     version: VERSION,
@@ -117,423 +90,30 @@ async function main() {
 
   const asanaClient = new AsanaClientWrapper(asanaToken);
 
-  // ツールの登録
-  // asana_list_workspaces
-  server.tool(
-    "asana_list_workspaces",
-    {
-      opt_fields: z.string().optional(),
-    },
-    async (args) => {
-      const response = await asanaClient.listWorkspaces(args);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
+  // Register tools for each category
+  registerAllWorkspaceTools(server, asanaClient);
+  registerAllProjectTools(server, asanaClient);
+  registerAllProjectStatusTools(server, asanaClient);
+  registerAllTaskTools(server, asanaClient);
+  registerAllTagTools(server, asanaClient);
+  registerAllTaskRelationshipTools(server, asanaClient);
+  registerAllStoryTools(server, asanaClient);
 
-  // asana_search_projects
-  server.tool(
-    "asana_search_projects",
-    {
-      workspace: z.string(),
-      name_pattern: z.string(),
-      archived: z.boolean().optional(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ workspace, name_pattern, archived = false, ...opts }) => {
-      const response = await asanaClient.searchProjects(
-        workspace,
-        name_pattern,
-        archived,
-        opts,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_search_tasks
-  server.tool(
-    "asana_search_tasks",
-    {
-      workspace: z.string(),
-      text: z.string().optional(),
-      resource_subtype: z.string().optional(),
-      completed: z.boolean().optional(),
-      sort_by: z.string().optional(),
-      sort_ascending: z.boolean().optional(),
-      opt_fields: z.string().optional(),
-      custom_fields: z.record(z.any()).optional(),
-    },
-    async ({ workspace, ...searchOpts }) => {
-      const response = await asanaClient.searchTasks(workspace, searchOpts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_task
-  server.tool(
-    "asana_get_task",
-    {
-      task_id: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ task_id, ...opts }) => {
-      const response = await asanaClient.getTask(task_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_create_task
-  server.tool(
-    "asana_create_task",
-    {
-      project_id: z.string(),
-      name: z.string(),
-      notes: z.string().optional(),
-      html_notes: z.string().optional(),
-      due_on: z.string().optional(),
-      assignee: z.string().optional(),
-      followers: z.array(z.string()).optional(),
-      parent: z.string().optional(),
-      projects: z.array(z.string()).optional(),
-    },
-    async ({ project_id, ...taskData }) => {
-      const response = await asanaClient.createTask(project_id, taskData);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_task_stories
-  server.tool(
-    "asana_get_task_stories",
-    {
-      task_id: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ task_id, ...opts }) => {
-      const response = await asanaClient.getStoriesForTask(task_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_update_task
-  server.tool(
-    "asana_update_task",
-    {
-      task_id: z.string(),
-      name: z.string().optional(),
-      notes: z.string().optional(),
-      due_on: z.string().optional(),
-      assignee: z.string().optional(),
-      completed: z.boolean().optional(),
-    },
-    async ({ task_id, ...taskData }) => {
-      const response = await asanaClient.updateTask(task_id, taskData);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_project
-  server.tool(
-    "asana_get_project",
-    {
-      project_id: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_id, ...opts }) => {
-      const response = await asanaClient.getProject(project_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_project_task_counts
-  server.tool(
-    "asana_get_project_task_counts",
-    {
-      project_id: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_id, ...opts }) => {
-      const response = await asanaClient.getProjectTaskCounts(project_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_project_sections
-  server.tool(
-    "asana_get_project_sections",
-    {
-      project_id: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_id, ...opts }) => {
-      const response = await asanaClient.getProjectSections(project_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_create_task_story
-  server.tool(
-    "asana_create_task_story",
-    {
-      task_id: z.string(),
-      text: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ task_id, text, ...opts }) => {
-      const response = await asanaClient.createTaskStory(task_id, text, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_add_task_dependencies
-  server.tool(
-    "asana_add_task_dependencies",
-    {
-      task_id: z.string(),
-      dependencies: z.array(z.string()),
-    },
-    async ({ task_id, dependencies }) => {
-      const response = await asanaClient.addTaskDependencies(
-        task_id,
-        dependencies,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_add_task_dependents
-  server.tool(
-    "asana_add_task_dependents",
-    {
-      task_id: z.string(),
-      dependents: z.array(z.string()),
-    },
-    async ({ task_id, dependents }) => {
-      const response = await asanaClient.addTaskDependents(task_id, dependents);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_create_subtask
-  server.tool(
-    "asana_create_subtask",
-    {
-      parent_task_id: z.string(),
-      name: z.string(),
-      notes: z.string().optional(),
-      due_on: z.string().optional(),
-      assignee: z.string().optional(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ parent_task_id, opt_fields, ...taskData }) => {
-      const response = await asanaClient.createSubtask(
-        parent_task_id,
-        taskData,
-        { opt_fields },
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_multiple_tasks_by_gid
-  server.tool(
-    "asana_get_multiple_tasks_by_gid",
-    {
-      task_ids: z.union([z.array(z.string()), z.string()]),
-      opt_fields: z.string().optional(),
-    },
-    async ({ task_ids, ...opts }) => {
-      // 配列とカンマ区切り文字列の両方を処理
-      const taskIdList = Array.isArray(task_ids)
-        ? task_ids
-        : task_ids
-            .split(",")
-            .map((id: string) => id.trim())
-            .filter((id: string) => id.length > 0);
-      const response = await asanaClient.getMultipleTasksByGid(
-        taskIdList,
-        opts,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_project_status
-  server.tool(
-    "asana_get_project_status",
-    {
-      project_status_gid: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_status_gid, ...opts }) => {
-      const response = await asanaClient.getProjectStatus(
-        project_status_gid,
-        opts,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_project_statuses
-  server.tool(
-    "asana_get_project_statuses",
-    {
-      project_gid: z.string(),
-      limit: z.number().optional(),
-      offset: z.string().optional(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_gid, ...opts }) => {
-      const response = await asanaClient.getProjectStatusesForProject(
-        project_gid,
-        opts,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_create_project_status
-  server.tool(
-    "asana_create_project_status",
-    {
-      project_gid: z.string(),
-      text: z.string(),
-      color: z.enum(["green", "yellow", "red"]).optional(),
-      title: z.string().optional(),
-      html_text: z.string().optional(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ project_gid, ...statusData }) => {
-      const response = await asanaClient.createProjectStatus(
-        project_gid,
-        statusData,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_delete_project_status
-  server.tool(
-    "asana_delete_project_status",
-    {
-      project_status_gid: z.string(),
-    },
-    async ({ project_status_gid }) => {
-      const response = await asanaClient.deleteProjectStatus(
-        project_status_gid,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_set_parent_for_task
-  server.tool(
-    "asana_set_parent_for_task",
-    {
-      data: z.union([z.string(), z.record(z.any())]),
-      task_id: z.string(),
-      opts: z.union([z.string(), z.record(z.any())]).optional(),
-    },
-    async ({ data, task_id, opts }) => {
-      if (typeof data === "string") {
-        data = JSON.parse(data);
-      }
-      if (typeof opts === "string") {
-        opts = JSON.parse(opts);
-      }
-      const response = await asanaClient.setParentForTask(data, task_id, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_tasks_for_tag
-  server.tool(
-    "asana_get_tasks_for_tag",
-    {
-      tag_gid: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ tag_gid, ...opts }) => {
-      const response = await asanaClient.getTasksForTag(tag_gid, opts);
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // asana_get_tags_for_workspace
-  server.tool(
-    "asana_get_tags_for_workspace",
-    {
-      workspace_gid: z.string(),
-      opt_fields: z.string().optional(),
-    },
-    async ({ workspace_gid, ...opts }) => {
-      const response = await asanaClient.getTagsForWorkspace(
-        workspace_gid,
-        opts,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(response) }],
-      };
-    },
-  );
-
-  // プロンプトの登録
-  // task-summary プロンプト
+  // Register prompts
+  // task-summary prompt
   server.prompt(
     "task-summary",
     {
       task_id: z.string(),
     },
     async ({ task_id }) => {
-      // タスクの詳細を取得
+      // Get task details
       const task = await asanaClient.getTask(task_id, {
         opt_fields:
           "name,notes,custom_fields,custom_fields.name,custom_fields.display_value",
       });
 
-      // コメント/ストーリーを取得
+      // Get comments/stories
       const stories = await asanaClient.getStoriesForTask(task_id, {
         opt_fields: "text,created_at,created_by",
       });
@@ -583,7 +163,7 @@ Please include:
     },
   );
 
-  // task-completeness プロンプト
+  // task-completeness prompt
   server.prompt(
     "task-completeness",
     {
@@ -643,7 +223,7 @@ Task: ${task_id}
     },
   );
 
-  // create-task プロンプト
+  // create-task prompt
   server.prompt(
     "create-task",
     {
@@ -759,8 +339,8 @@ ${due_date ? `Due Date: ${due_date}` : ""}
     },
   );
 
-  // リソースの登録
-  // ワークスペースリソース
+  // Register resources
+  // Workspace resource
   server.resource(
     "workspace",
     new ResourceTemplate("asana://workspace/{workspace_gid}", {
@@ -768,7 +348,7 @@ ${due_date ? `Due Date: ${due_date}` : ""}
     }),
     async (uri, params) => {
       const workspace_gid = params.workspace_gid as string;
-      // ワークスペースの詳細を取得
+      // Get workspace details
       const workspaces = await asanaClient.listWorkspaces({
         opt_fields: "name,gid,resource_type,email_domains,is_organization",
       });
@@ -779,7 +359,7 @@ ${due_date ? `Due Date: ${due_date}` : ""}
         throw new Error(`Workspace not found: ${workspace_gid}`);
       }
 
-      // ワークスペースデータのフォーマット
+      // Format workspace data
       const workspaceData = {
         name: workspace.name,
         id: workspace.gid,
@@ -800,14 +380,14 @@ ${due_date ? `Due Date: ${due_date}` : ""}
     },
   );
 
-  // プロジェクトリソース
+  // Project resource
   server.resource(
     "project",
     new ResourceTemplate("asana://project/{project_gid}", { list: undefined }),
     async (uri, params) => {
       const project_gid = params.project_gid as string;
       try {
-        // プロジェクトの詳細を取得
+        // Get project details
         const project = await asanaClient.getProject(project_gid, {
           opt_fields:
             "name,gid,resource_type,created_at,modified_at,archived,public,notes,color,default_view,due_date,due_on,start_on,workspace,team",
@@ -817,7 +397,7 @@ ${due_date ? `Due Date: ${due_date}` : ""}
           throw new Error(`Project not found: ${project_gid}`);
         }
 
-        // プロジェクトのセクションを取得
+        // Get project sections
         let sections = [];
         try {
           sections = await asanaClient.getProjectSections(project_gid, {
@@ -828,10 +408,10 @@ ${due_date ? `Due Date: ${due_date}` : ""}
             `Error fetching sections for project ${project_gid}:`,
             sectionError,
           );
-          // 空のセクション配列で続行
+          // Continue with empty sections array
         }
 
-        // カスタムフィールド設定を直接取得
+        // Get custom field settings directly
         let customFields = [];
         try {
           const customFieldSettings =
@@ -853,7 +433,7 @@ ${due_date ? `Due Date: ${due_date}` : ""}
                   description: field.description || null,
                 };
 
-                // フィールドタイプ固有のプロパティを追加
+                // Add field type-specific properties
                 switch (field.type) {
                   case "enum":
                     if (
@@ -886,10 +466,10 @@ ${due_date ? `Due Date: ${due_date}` : ""}
                     break;
                   case "text":
                   case "date":
-                    // 特別な処理は不要
+                    // No special processing needed
                     break;
                   case "people":
-                    // 特別な処理は不要
+                    // No special processing needed
                     break;
                 }
 
@@ -901,10 +481,10 @@ ${due_date ? `Due Date: ${due_date}` : ""}
             `Error fetching custom fields for project ${project_gid}:`,
             customFieldError,
           );
-          // 空のcustomFields配列で続行
+          // Continue with empty customFields array
         }
 
-        // プロジェクトデータのフォーマット
+        // Format project data
         const projectData = {
           name: project.name || null,
           id: project.gid || null,
@@ -961,7 +541,7 @@ ${due_date ? `Due Date: ${due_date}` : ""}
     },
   );
 
-  // サーバーをトランスポートに接続
+  // Connect server to transport
   const transport = new StdioServerTransport();
   console.error("Connecting server to transport...");
   await server.connect(transport);

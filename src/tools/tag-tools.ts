@@ -1,59 +1,69 @@
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { AsanaClientWrapper } from "../asana-client-wrapper.js";
 
-export const getTagsForWorkspaceTool: Tool = {
-  name: "asana_get_tags_for_workspace",
-  description: "Get tags in a workspace",
-  inputSchema: {
-    type: "object",
-    properties: {
-      workspace_gid: {
-        type: "string",
-        description: "Globally unique identifier for the workspace or organization"
-      },
-      limit: {
-        type: "integer",
-        description: "Results per page. The number of objects to return per page. The value must be between 1 and 100."
-      },
-      offset: {
-        type: "string",
-        description: "Offset token. An offset to the next page returned by the API."
-      },
-      opt_fields: {
-        type: "string",
-        description: "Comma-separated list of optional fields to include"
-      }
-    },
-    required: ["workspace_gid"]
-  }
-};
-
-export const getTasksForTagTool: Tool = {
+// Get tasks associated with a specific tag tool
+export const getTasksForTagTool = {
   name: "asana_get_tasks_for_tag",
-  description: "Get tasks for a specific tag",
+  description: "Get tasks associated with a specific tag",
   inputSchema: {
-    type: "object",
-    properties: {
-      tag_gid: {
-        type: "string",
-        description: "The tag GID to retrieve tasks for"
-      },
-      opt_fields: {
-        type: "string",
-        description: "Comma-separated list of optional fields to include"
-      },
-      opt_pretty: {
-        type: "boolean",
-        description: "Provides the response in a 'pretty' format"
-      },
-      limit: {
-        type: "integer",
-        description: "The number of objects to return per page. The value must be between 1 and 100."
-      },
-      offset: {
-        type: "string",
-        description: "An offset to the next page returned by the API."
-      }
-    },
-    required: ["tag_gid"]
-  }
+    tag_gid: z.string(),
+    opt_fields: z.string().optional(),
+  },
 };
+
+// Get all tags in a workspace tool
+export const getTagsForWorkspaceTool = {
+  name: "asana_get_tags_for_workspace",
+  description: "Get all tags in a workspace",
+  inputSchema: {
+    workspace_gid: z.string(),
+    opt_fields: z.string().optional(),
+  },
+};
+
+// Register get tasks for tag tool
+export function registerGetTasksForTagTool(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  server.tool(
+    getTasksForTagTool.name,
+    getTasksForTagTool.inputSchema,
+    async ({ tag_gid, ...opts }) => {
+      const response = await asanaClient.getTasksForTag(tag_gid, opts);
+      return {
+        content: [{ type: "text", text: JSON.stringify(response) }],
+      };
+    },
+  );
+}
+
+// Register get tags for workspace tool
+export function registerGetTagsForWorkspaceTool(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  server.tool(
+    getTagsForWorkspaceTool.name,
+    getTagsForWorkspaceTool.inputSchema,
+    async ({ workspace_gid, ...opts }) => {
+      const response = await asanaClient.getTagsForWorkspace(
+        workspace_gid,
+        opts,
+      );
+      return {
+        content: [{ type: "text", text: JSON.stringify(response) }],
+      };
+    },
+  );
+}
+
+// Register all tag-related tools
+export function registerAllTagTools(
+  server: McpServer,
+  asanaClient: AsanaClientWrapper,
+) {
+  registerGetTasksForTagTool(server, asanaClient);
+  registerGetTagsForWorkspaceTool(server, asanaClient);
+}
